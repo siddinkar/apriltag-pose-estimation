@@ -2,25 +2,17 @@
 #include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/videoio.hpp>
+#include <opencv2/video/video.hpp>
+#include <sys/time.h>
 #include <stdio.h>
 #include <iostream>
 #include <ctime>
-using namespace std;
 
 int CHECKERBOARD[2]{7, 8};
 cv::VideoCapture cap(0);
 
-int main()
-{
-    cv::Mat cameraMatrix, distCoeffs, R, T;
-
-    // calibration(&cameraMatrix, &distCoeffs, &R, &T);
-
-    readCamera();
-    return 0;
-}
-
-void readCamera()
+void readWriteCamera()
 {
     cv::Mat frame;
     int i = 0;
@@ -30,28 +22,29 @@ void readCamera()
         if (!frame.empty())
         {
             cv::imshow("Image", frame);
-            cout << std::time(0) << endl;
-            if (std::time(0) % 5000 == 0)
+            struct timeval tp;
+            gettimeofday(&tp, NULL);
+            long int ms = tp.tv_sec * 1000 + tp.tv_usec / 1000;
+            if (ms % 75 == 0)
             {
+                std::cout << "hello" << std::endl;
                 cv::imwrite("./checkerboard_img/checkerboard" + std::to_string(i) + ".jpg", frame);
                 i++;
             }
-            char c = std::cin.get();
-            if (cv::waitKey(0) && c == 'q')
-            {
+            int k = cv::waitKey(1) & 0XFF;
+            if (k == 27)
                 break;
-            }
         };
     }
 }
 
 void calibration(cv::Mat *add_cameraMatrix, cv::Mat *add_distCoeffs, cv::Mat *add_R, cv::Mat *add_T)
 {
-    vector<vector<cv::Point3f>> obj_points; // storing vectors of 3d real world points
-    vector<vector<cv::Point2f>> img_points; // sotring vectors of 2d points in image space
+    std::vector<std::vector<cv::Point3f>> obj_points; // storing vectors of 3d real world points
+    std::vector<std::vector<cv::Point2f>> img_points; // sotring vectors of 2d points in image space
 
     // real world coordinates
-    vector<cv::Point3f> obj_coords;
+    std::vector<cv::Point3f> obj_coords;
     for (int i = 0; i < CHECKERBOARD[1]; i++)
     {
         for (int j = 0; i < CHECKERBOARD[0]; j++)
@@ -60,12 +53,12 @@ void calibration(cv::Mat *add_cameraMatrix, cv::Mat *add_distCoeffs, cv::Mat *ad
         }
     }
 
-    vector<cv::String> images;
-    string path = "./images/*.jpg";
+    std::vector<cv::String> images;
+    std::string path = "./images/*.jpg";
     cv::glob(path, images);
 
     cv::Mat frame, gray;
-    vector<cv::Point2f> corner_pts;
+    std::vector<cv::Point2f> corner_pts;
     bool success;
 
     for (int i = 0; i < images.size(); i++)
@@ -101,4 +94,13 @@ void calibration(cv::Mat *add_cameraMatrix, cv::Mat *add_distCoeffs, cv::Mat *ad
     *add_distCoeffs = distCoeffs;
     *add_R = R;
     *add_T = T;
+}
+
+int main()
+{
+    cv::Mat cameraMatrix, distCoeffs, R, T;
+
+    // calibration(&cameraMatrix, &distCoeffs, &R, &T);
+    readWriteCamera();
+    return 0;
 }

@@ -1,0 +1,4 @@
+/Users/sid/apriltag-detection/CMakeFiles/calib.dir
+/Users/sid/apriltag-detection/CMakeFiles/main.dir
+/Users/sid/apriltag-detection/CMakeFiles/edit_cache.dir
+/Users/sid/apriltag-detection/CMakeFiles/rebuild_cache.dir
