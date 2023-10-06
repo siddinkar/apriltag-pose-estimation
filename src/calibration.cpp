@@ -9,6 +9,7 @@
 #include <iostream>
 #include <ctime>
 #include <fstream>
+#include <numeric>
 
 int CHECKERBOARD[2]{9, 7};
 cv::VideoCapture cap(0);
@@ -145,6 +146,36 @@ void calibration(cv::Mat *add_cameraMatrix, cv::Mat *add_distCoeffs, cv::Mat *ad
     *add_principalPoint = principalPoint;
 }
 
+bool compare(const std::vector<cv::Point> &a, const std::vector<cv::Point> &b) {
+    return cv::contourArea(a) > cv::contourArea(b);
+}
+
+void findTagCorners(cv::Mat frame, int kernelSize, std::vector<std::vector<cv::Point>> *majorContours) {
+    cv::Mat gray, blurred, thresh;
+    std::vector<std::vector<cv::Point>> contours;
+    std::vector<cv::Vec4i> heirarchy;
+
+    cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
+    cv::GaussianBlur(gray, blurred, cv::Size(kernelSize, kernelSize), 0);
+
+    cv::adaptiveThreshold(blurred, thresh, 255, cv::AdaptiveThresholdTypes::ADAPTIVE_THRESH_MEAN_C, cv::ThresholdTypes::THRESH_BINARY_INV, 3, 0);
+    cv::findContours(thresh, contours, heirarchy, cv::RETR_LIST, cv::CHAIN_APPROX_NONE);
+
+    std::vector<int> indices(contours.size());
+    iota(indices.begin(), indices.end(), 0);
+
+    std::sort(contours.begin(), contours.end(), compare);
+
+    int N = 4; // set number of largest contours
+    N = std::min(N, int(contours.size()));
+    for(int i = 1; i <= N; i++) {
+        cv::drawContours(frame, contours, indices[i], cv::Scalar(0, 255, 0), 2);
+        majorContours->push_back(contours[indices[i]]);
+    }
+
+    cv::imshow("Contours", frame);
+}
+
 int main()
 {
     // cv::Mat cameraMatrix, distCoeffs, R, T;
@@ -160,16 +191,15 @@ int main()
     cameraMatrix = ReadMatFromTxt("undistort.txt", 3, 3);
     distCoeffs = ReadMatFromTxt("distcoeffs.txt", 1, 5);
 
-    cv::Mat frame;
-    cv::Mat undistorted;
+    cv::Mat frame, undistorted;
+    std::vector<std::vector<cv::Point>> majorContours;
     while (cap.isOpened())
     {
         cap.read(frame);
         if (!frame.empty())
         {
             cv::undistort(frame, undistorted, cameraMatrix, distCoeffs);
-            cv::imshow("Distored Image", frame);
-            cv::imshow("Undistorded Image", undistorted);
+            findTagCorners(undistorted, 7, &majorContours);
             int k = cv::waitKey(1) & 0XFF;
             if (k == 27)
                 break;
