@@ -46,4 +46,4 @@ CMakeCache.txt
 CMakeLists.txt
 main
 calib
-CMakeFiles
+CMakeFiles/*
