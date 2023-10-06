@@ -8,8 +8,9 @@
 #include <stdio.h>
 #include <iostream>
 #include <ctime>
+#include <fstream>
 
-int CHECKERBOARD[2]{7, 8};
+int CHECKERBOARD[2]{9, 7};
 cv::VideoCapture cap(0);
 
 void readWriteCamera()
@@ -27,8 +28,7 @@ void readWriteCamera()
             long int ms = tp.tv_sec * 1000 + tp.tv_usec / 1000;
             if (ms % 75 == 0)
             {
-                std::cout << "hello" << std::endl;
-                cv::imwrite("./checkerboard_img/checkerboard" + std::to_string(i) + ".jpg", frame);
+                cv::imwrite("./checkerboard_img/checkerboard" + std::to_string(i) + "000.jpg", frame);
                 i++;
             }
             int k = cv::waitKey(1) & 0XFF;
@@ -38,7 +38,47 @@ void readWriteCamera()
     }
 }
 
-void calibration(cv::Mat *add_cameraMatrix, cv::Mat *add_distCoeffs, cv::Mat *add_R, cv::Mat *add_T)
+void writeMatToFile(cv::Mat& m, const char* filename)
+{
+    std::ofstream fout(filename);
+
+    if(!fout)
+    {
+        std::cout<<"File Not Opened"<<std::endl;  return;
+    }
+
+    for(int i=0; i<m.rows; i++)
+    {
+        for(int j=0; j<m.cols; j++)
+        {
+            fout<<m.at<double>(i,j)<<"\t";
+        }
+        fout<<std::endl;
+    }
+    
+
+    fout.close();
+}
+
+cv::Mat ReadMatFromTxt(std::string filename, int rows,int cols)
+{
+    double m;
+    cv::Mat out = cv::Mat::zeros(rows, cols, CV_64FC1);//Matrix to store values
+
+    std::ifstream fileStream(filename);
+    int cnt = 0;//index starts from 0
+    while (fileStream >> m)
+    {
+        int temprow = cnt / cols;
+        int tempcol = cnt % cols;
+        out.at<double>(temprow, tempcol) = m;
+        cnt++;
+    }
+    return out;
+}
+
+void calibration(cv::Mat *add_cameraMatrix, cv::Mat *add_distCoeffs, cv::Mat *add_R, cv::Mat *add_T,
+                    double* add_fov_x, double* add_fov_y, double* add_focalLength, double* add_aspectRatio, cv::Point2d *add_principalPoint)
 {
     std::vector<std::vector<cv::Point3f>> obj_points; // storing vectors of 3d real world points
     std::vector<std::vector<cv::Point2f>> img_points; // sotring vectors of 2d points in image space
@@ -47,14 +87,14 @@ void calibration(cv::Mat *add_cameraMatrix, cv::Mat *add_distCoeffs, cv::Mat *ad
     std::vector<cv::Point3f> obj_coords;
     for (int i = 0; i < CHECKERBOARD[1]; i++)
     {
-        for (int j = 0; i < CHECKERBOARD[0]; j++)
+        for (int j = 0; j < CHECKERBOARD[0]; j++)
         {
             obj_coords.push_back(cv::Point3f(j, i, 0));
         }
     }
 
     std::vector<cv::String> images;
-    std::string path = "./images/*.jpg";
+    std::string path = "./checkerboard_img/*.jpg";
     cv::glob(path, images);
 
     cv::Mat frame, gray;
@@ -63,6 +103,7 @@ void calibration(cv::Mat *add_cameraMatrix, cv::Mat *add_distCoeffs, cv::Mat *ad
 
     for (int i = 0; i < images.size(); i++)
     {
+        std::cout << i << std::endl;
         frame = cv::imread(images[i]);
         cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
         success = cv::findChessboardCorners(gray, cv::Size(CHECKERBOARD[0], CHECKERBOARD[1]), corner_pts, cv::CALIB_CB_ADAPTIVE_THRESH | cv::CALIB_CB_FAST_CHECK | cv::CALIB_CB_NORMALIZE_IMAGE);
@@ -75,32 +116,66 @@ void calibration(cv::Mat *add_cameraMatrix, cv::Mat *add_distCoeffs, cv::Mat *ad
 
             // Displaying the detected corner points on the checker board
             cv::drawChessboardCorners(frame, cv::Size(CHECKERBOARD[0], CHECKERBOARD[1]), corner_pts, success);
+            cv::imwrite("./corner_img/" + std::to_string(i) + "-corners.png", frame);
 
             obj_points.push_back(obj_coords);
             img_points.push_back(corner_pts);
         }
-
-        cv::imshow("Image", frame);
-        cv::waitKey(0);
     }
 
     cv::destroyAllWindows();
 
     cv::Mat cameraMatrix, distCoeffs, R, T;
+    double fov_x, fov_y, focalLength, aspectRatio;
+    cv::Point2d principalPoint;
+
+    cv::Size imageSize(1920, 1080);
 
     cv::calibrateCamera(obj_points, img_points, cv::Size(gray.rows, gray.cols), cameraMatrix, distCoeffs, R, T);
+    cv::calibrationMatrixValues(cameraMatrix, imageSize, 1, 1, fov_x, fov_y, focalLength, principalPoint, aspectRatio);
 
     *add_cameraMatrix = cameraMatrix;
     *add_distCoeffs = distCoeffs;
     *add_R = R;
     *add_T = T;
+    *add_fov_x = fov_x;
+    *add_fov_y = fov_y;
+    *add_focalLength = focalLength;
+    *add_aspectRatio = aspectRatio;
+    *add_principalPoint = principalPoint;
 }
 
 int main()
 {
-    cv::Mat cameraMatrix, distCoeffs, R, T;
+    // cv::Mat cameraMatrix, distCoeffs, R, T;
+    // double fov_x, fov_y, focalLength, aspectRatio;
+    // cv::Point2d principalPoint;
 
-    // calibration(&cameraMatrix, &distCoeffs, &R, &T);
-    readWriteCamera();
+    // calibration(&cameraMatrix, &distCoeffs, &R, &T, &fov_x, &fov_y, &focalLength, &aspectRatio, &principalPoint);
+
+    // writeMatToFile(cameraMatrix, "undistort.txt");
+    // writeMatToFile(distCoeffs, "distcoeffs.txt");
+
+    cv::Mat cameraMatrix, distCoeffs;
+    cameraMatrix = ReadMatFromTxt("undistort.txt", 3, 3);
+    distCoeffs = ReadMatFromTxt("distcoeffs.txt", 1, 5);
+
+    cv::Mat frame;
+    cv::Mat undistorted;
+    while (cap.isOpened())
+    {
+        cap.read(frame);
+        if (!frame.empty())
+        {
+            cv::undistort(frame, undistorted, cameraMatrix, distCoeffs);
+            cv::imshow("Distored Image", frame);
+            cv::imshow("Undistorded Image", undistorted);
+            int k = cv::waitKey(1) & 0XFF;
+            if (k == 27)
+                break;
+        }
+    }
+
+    // readWriteCamera();
     return 0;
 }
