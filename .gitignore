@@ -41,3 +41,8 @@ Thumbs.db
 checkerboard_img/*
 distcoeffs.txt
 undistort.txt
+cmake_install.cmake
+CMakeCache.txt
+CMakeLists.txt
+main
+calib
